@@ -711,7 +711,10 @@ def get_sales_non_inv(company_id = None):
                 all_vouchers.append(ledger_dict)
 
 
-            elif account_type == "Expense Account":
+            # An expense is an expense whichever way the account is tagged:
+            # Direct and Indirect Expense are the same thing to Tally as
+            # Expense Account, and were previously dropped from the voucher.
+            elif account_type in ("Expense Account", "Direct Expense", "Indirect Expense"):
                 parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
 
                 ledger_dict = {
