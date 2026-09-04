@@ -727,7 +727,10 @@ def credit_note_inv(company_id = None):
                     
                     all_vouchers.append(ledger_dict)
 
-                elif account_type == "Expense Account":
+                # Same as the sales invoice: an expense tagged Direct or
+                # Indirect Expense is still an expense, and was being dropped
+                # from the voucher rather than sent.
+                elif account_type in ("Expense Account", "Direct Expense", "Indirect Expense"):
                     parent_account = frappe.get_value('Account', ledger['account'], 'custom_tally_parent_account')
 
                     ledger_dict = {
