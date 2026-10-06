@@ -3,6 +3,7 @@
 
 frappe.ui.form.on('TS Tally Settings', {
     refresh: function (frm) {
+        lock_voucher_sync_control(frm);
         set_child_queries(frm);
         fetch_unmapped_accounts(frm);
         fetch_sync_dashboard(frm);
@@ -10,6 +11,12 @@ frappe.ui.form.on('TS Tally Settings', {
             set_cost_center_for_company(frm);
             fetch_not_synced_data(frm);
         }
+    },
+    dashboard_from_date: function (frm) {
+        refetch_dashboard_if_valid(frm);
+    },
+    dashboard_to_date: function (frm) {
+        refetch_dashboard_if_valid(frm);
     },
     not_synced_company: function (frm) {
         if (frm.doc.not_synced_company) {
@@ -152,32 +159,53 @@ function fetch_not_synced_data(frm) {
 }
 
 
-function fetch_sync_dashboard(frm) {
-    if (!frm.fields_dict['sync_dashboard_html']) return;
+function refetch_dashboard_if_valid(frm) {
+    const { dashboard_from_date: from_date, dashboard_to_date: to_date } = frm.doc;
+    if (from_date && to_date && from_date > to_date) {
+        frappe.msgprint(__('From Date must be on or before To Date.'));
+        return;
+    }
+    fetch_sync_dashboard(frm);
+}
 
-    frm.fields_dict['sync_dashboard_html'].html(
+function fetch_sync_dashboard(frm) {
+    const field = frm.fields_dict['sync_dashboard_html'];
+    if (!field) return;
+    const from_date = frm.doc.dashboard_from_date || null;
+    const to_date = frm.doc.dashboard_to_date || null;
+
+    field.html(
         '<div style="text-align:center; padding:20px; color:#888;">Loading sync dashboard...</div>'
     );
 
     frappe.call({
         method: 'ts_tally_integration.tally_integration.doctype.ts_tally_settings.ts_tally_settings.get_sync_dashboard_data',
+        args: { from_date, to_date },
         callback: function (r) {
             if (!r.message) return;
-            frm.fields_dict['sync_dashboard_html'].html(render_sync_dashboard(r.message));
+            field.html(render_sync_dashboard(r.message, { from_date, to_date }));
+            field.$wrapper.off('.syncdash').on('click.syncdash', '[data-action="sd-refresh"]', () =>
+                fetch_sync_dashboard(frm)
+            );
         }
     });
 }
 
-function render_sync_dashboard(data) {
-    const refresh_btn = `
-        <div style="text-align:right; margin-bottom:10px;">
-            <button class="btn btn-default btn-sm" onclick="cur_frm && cur_frm.trigger('refresh')">
-                Refresh
-            </button>
+function render_sync_dashboard(data, range) {
+    range = range || {};
+    const active = range.from_date || range.to_date;
+    const summary = active
+        ? `Showing ${range.from_date ? 'from <b>' + frappe.datetime.str_to_user(range.from_date) + '</b>' : ''}` +
+          `${range.to_date ? ' to <b>' + frappe.datetime.str_to_user(range.to_date) + '</b>' : ''}` +
+          ` — vouchers by Posting Date, masters by Created On.`
+        : 'Showing all dates.';
+
+    let html = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:12px; color:#666;">${summary}</span>
+            <button class="btn btn-default btn-sm" data-action="sd-refresh">Refresh</button>
         </div>
     `;
-
-    let html = refresh_btn;
 
     if (data.global_masters && data.global_masters.length) {
         html += render_dashboard_section('Global Masters (Company Independent)', data.global_masters);
@@ -243,3 +271,15 @@ function render_dashboard_section(title, rows) {
     `;
 }
 
+
+// Voucher Sync Control rows are created on migrate (append_voucher_sync_control),
+// one per voucher type. Users only change the settings on each row; adding or
+// deleting rows here would leave the list out of step with the vouchers synced.
+function lock_voucher_sync_control(frm) {
+    const grid = frm.fields_dict.voucher_sync_control && frm.fields_dict.voucher_sync_control.grid;
+    if (!grid) return;
+    grid.cannot_add_rows = true;
+    grid.df.cannot_add_rows = true;
+    grid.df.cannot_delete_rows = true;
+    grid.refresh();
+}
