@@ -300,7 +300,7 @@ def get_not_synced_data(company):
 
 
 @frappe.whitelist()
-def get_sync_dashboard_data():
+def get_sync_dashboard_data(from_date=None, to_date=None):
 	"""
 	Returns dashboard stats for the Sync Dashboard tab.
 
@@ -318,9 +318,35 @@ def get_sync_dashboard_data():
 	}
 	"""
 	settings = frappe.get_single("TS Tally Settings")
+	from_date = getdate(from_date) if from_date else None
+	to_date = getdate(to_date) if to_date else None
+
+	def date_window(lo, hi):
+		"""The company's own sync window narrowed by the dashboard's dates."""
+		lo = getdate(lo) if lo else None
+		hi = getdate(hi) if hi else None
+		if from_date and (not lo or from_date > lo):
+			lo = from_date
+		if to_date and (not hi or to_date < hi):
+			hi = to_date
+		return lo, hi
+
+	def date_filter(field, lo, hi):
+		if lo and hi:
+			return {field: ["between", [lo, hi]]}
+		if lo:
+			return {field: [">=", lo]}
+		if hi:
+			return {field: ["<=", hi]}
+		return {}
 
 	def master_stats(parent_doctype, base_filters=None, company_number=None):
-		base_filters = base_filters or {}
+		# Masters have no posting date: the dashboard dates count the records
+		# created in that period.
+		base_filters = dict(base_filters or {})
+		# "between" on a datetime runs to the end of the To day.
+		if from_date or to_date:
+			base_filters["creation"] = ["between", [from_date or "2000-01-01", to_date or "2999-12-31"]]
 		log_filters = {"parenttype": parent_doctype, "status": "SUCCESS"}
 		if company_number is not None:
 			log_filters["company_number"] = company_number
@@ -372,15 +398,15 @@ def get_sync_dashboard_data():
 
 		pending_filters = dict(base)
 		pending_filters["custom_tally_guid"] = ["is", "not set"]
-		if sync_from and sync_to:
-			pending_filters["posting_date"] = ["between", [sync_from, sync_to]]
-		elif sync_from:
-			pending_filters["posting_date"] = [">=", sync_from]
+		# Pending: inside the company's sync window, narrowed by the dashboard dates.
+		pending_filters.update(date_filter("posting_date", *date_window(sync_from, sync_to)))
 		if cost_center and not cost_center_in_child:
 			pending_filters["cost_center"] = cost_center
 
 		synced_filters = dict(base)
 		synced_filters["custom_tally_guid"] = ["is", "set"]
+		# Synced: whatever was posted in the dashboard dates, sync window or not.
+		synced_filters.update(date_filter("posting_date", from_date, to_date))
 		if cost_center and not cost_center_in_child:
 			synced_filters["cost_center"] = cost_center
 
@@ -457,7 +483,12 @@ def get_sync_dashboard_data():
 			"vouchers": vouchers,
 		})
 
-	return {"global_masters": global_masters, "companies": companies}
+	return {
+		"global_masters": global_masters,
+		"companies": companies,
+		"from_date": from_date,
+		"to_date": to_date,
+	}
 
 
 @frappe.whitelist()
