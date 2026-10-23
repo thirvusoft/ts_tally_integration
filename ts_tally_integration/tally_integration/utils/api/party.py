@@ -7,20 +7,6 @@ from werkzeug.wrappers import Response
 from frappe.utils import get_datetime
 
 
-PARTY_NAME_FIELDS = {
-    'Customer': 'customer_name',
-    'Supplier': 'supplier_name',
-    'Employee': 'employee_name',
-}
-
-
-def get_party_name(party_type, party):
-    """Tally ledger name for a party: its party name, not its ID."""
-    if party_type in PARTY_NAME_FIELDS:
-        return frappe.get_value(party_type, party, PARTY_NAME_FIELDS[party_type]) or party
-    return party
-
-
 def is_sync_enabled(voucher_name):
     return frappe.get_value('Voucher Sync Control', {'voucher_name': voucher_name}, 'enable_sync')
 
@@ -50,9 +36,9 @@ def get_party(company_id = None):
 
 
         supplier_dict = {
-                "Autoid": supplier.supplier_name,
+                "Autoid": supplier.name,
                 "CompanyNumber": str(company_id),
-                "LedgerName": supplier.supplier_name,
+                "LedgerName": supplier.name,
                 "LedgerParent": "Sundry Creditors",
                 "LedgerAddress": supplier_address[0]['city'] if supplier_address else '',
                 "LedgerState": supplier_address[0]['state'] if supplier_address else '',
@@ -86,9 +72,9 @@ def get_party(company_id = None):
             customer_address = []
 
         customer_dict = {
-            "Autoid": customer.customer_name,
+            "Autoid": customer.name,
             "CompanyNumber": str(company_id),
-            "LedgerName": customer.customer_name,
+            "LedgerName": customer.name,
             "LedgerParent": "Sundry Debtors",
             "LedgerAddress": customer_address[0]['city'] if customer_address else '',
             "LedgerState": customer_address[0]['state'] if customer_address else '',
@@ -112,9 +98,9 @@ def get_party(company_id = None):
     for employee in employees:
 
         employee_dict = {
-            "Autoid": employee.employee_name,
+            "Autoid": employee.name,
             "CompanyNumber": str(company_id),
-            "LedgerName": employee.employee_name,
+            "LedgerName": employee.name,
             "LedgerParent": "Sundry Debtors",
             "LedgerAddress": "",
             "LedgerState": '',
@@ -241,10 +227,10 @@ def fetch_response(response, company_id=None):
 
         updated = False
 
-        # Parties are sent to Tally by their party name, not their ID.
-        for doctype, name_field in PARTY_NAME_FIELDS.items():
-            for docname in frappe.get_all(doctype, filters={name_field: party_name}, pluck='name'):
-                _update_sync_log(doctype, docname, 'custom_tally_sync_log', company_id, company_name, party_name, status, sync_time)
+        # Parties are sent to Tally by their ID.
+        for doctype in ('Customer', 'Supplier', 'Employee'):
+            if frappe.db.exists(doctype, party_name):
+                _update_sync_log(doctype, party_name, 'custom_tally_sync_log', company_id, company_name, party_name, status, sync_time)
                 updated = True
 
         account_filters = {"account_name": party_name}

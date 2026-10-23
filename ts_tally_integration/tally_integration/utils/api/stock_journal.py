@@ -88,7 +88,7 @@ def get_stock_entry(company_id=None):
                 "BillDate": "",
                 "CostCategory": "",
                 "CostCentre": "",
-                "Stockitem": item.item_name,
+                "Stockitem": item.item_code,
                 "BatchNo": "",
                 "Quantity": float(item.qty),
                 "Rate": float(item.basic_rate),

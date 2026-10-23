@@ -75,7 +75,7 @@ def get_purchase_invoice(company_id=None):
             cus_address = frappe.get_all('Address', filters={'name': doc.supplier_address}, fields=['*'])
         else:
             cus_address = []
-        supplier_pan = frappe.get_value('Supplier', {'name': doc.supplier_name}, ['pan'])
+        supplier_pan = frappe.get_value('Supplier', {'name': doc.supplier}, ['pan'])
 
         cus_ship_link = frappe.get_all('Dynamic Link', filters={'link_doctype': 'supplier', 'link_name': doc['supplier']}, fields=['parent'])
         cus_ship_address = frappe.get_all('Address', filters={'name': cus_ship_link[0]['parent']} if cus_ship_link else {}, fields=['*'])
@@ -155,7 +155,7 @@ def get_purchase_invoice(company_id=None):
                         "CrDr": cr_dr,
                         "CostCategory": get_tally_cost_category(doc),
                         "CostCentre": get_tally_cost_center(doc),
-                        "Stockitem": item['item_name'],
+                        "Stockitem": item['item_code'],
                         "Godown": item['warehouse'].split('-')[0].strip(),
                         "Godown": "",
                         "BatchNo": "",
@@ -639,7 +639,7 @@ def get_purchase_invoice(company_id=None):
 
 
             elif account_type == 'Payable':
-                ledgername = doc.supplier_name
+                ledgername = doc.supplier
                 parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
 
                 ledger_dict = {

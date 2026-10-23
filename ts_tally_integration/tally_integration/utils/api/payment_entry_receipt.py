@@ -104,7 +104,7 @@ def get_payment_entry_receipt(company_id=None):
                         "SEZ": "Regular - SEZ"
                     }.get(cust.gst_category, cust.gst_category)
 
-                    ledger_name = cust.customer_name
+                    ledger_name = party_name
                     gstin = cust.gstin or ""
                     pan = cust.pan or None
 
@@ -113,11 +113,11 @@ def get_payment_entry_receipt(company_id=None):
                     gst_category = supp.supplier_type or ""
                     gstin = supp.gstin or ""
                     pan = supp.pan or None
-                    ledger_name = supp.supplier_name
+                    ledger_name = party_name
 
                 elif party_type == "Employee":
                     emp = frappe.get_doc("Employee", party_name)
-                    ledger_name = emp.employee_name
+                    ledger_name = party_name
                     pan = emp.pan_number or None
                     gst_category = "Employee"
 

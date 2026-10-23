@@ -78,7 +78,7 @@ def get_sales_non_inv(company_id = None):
         else:
             cus_address = []
 
-        customer_pan = frappe.get_value('Customer', {'name': doc.customer_name}, ['pan'])
+        customer_pan = frappe.get_value('Customer', {'name': doc.customer}, ['pan'])
 
         cus_ship_link = frappe.get_all('Dynamic Link', filters={'link_doctype': 'Customer', 'link_name': doc['customer']}, fields=['parent'])
         cus_ship_address = frappe.get_all('Address', filters={'name': cus_ship_link[0]['parent']} if cus_ship_link else {}, fields=['*'])
@@ -628,7 +628,7 @@ def get_sales_non_inv(company_id = None):
 
 
             elif account_type == 'Receivable':
-                ledgername = doc.customer_name
+                ledgername = doc.customer
                 parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
 
                 ledger_dict = {
