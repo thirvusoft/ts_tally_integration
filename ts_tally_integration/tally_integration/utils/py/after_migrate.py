@@ -44,8 +44,20 @@ def create_gst_tally_accounts():
         ("Sales @ 28.0", "Sales Accounts"),
         ("Purchase @ 28.0", "Purchase Accounts"),
 
+        ("Sales @ 40.0", "Sales Accounts"),
+        ("Purchase @ 40.0", "Purchase Accounts"),
+
         ("Sales @ Exempt", "Sales Accounts"),
         ("Purchase @ Exempt", "Purchase Accounts"),
+
+        ("Sales @ Nil Rated", "Sales Accounts"),
+        ("Purchase @ Nil Rated", "Purchase Accounts"),
+
+        ("Sales @ Non GST", "Sales Accounts"),
+        ("Purchase @ Non GST", "Purchase Accounts"),
+
+        ("Sales @ Zero Rated", "Sales Accounts"),
+        ("Purchase @ Zero Rated", "Purchase Accounts"),
 
         # Input Tax
         ("Input Tax CGST @ 2.5", "Duties & Taxes"),
@@ -64,6 +76,10 @@ def create_gst_tally_accounts():
         ("Input Tax SGST @ 14.0", "Duties & Taxes"),
         ("Input Tax IGST @ 28.0", "Duties & Taxes"),
 
+        ("Input Tax CGST @ 20.0", "Duties & Taxes"),
+        ("Input Tax SGST @ 20.0", "Duties & Taxes"),
+        ("Input Tax IGST @ 40.0", "Duties & Taxes"),
+
         # Output Tax
         ("Output Tax CGST @ 2.5", "Duties & Taxes"),
         ("Output Tax SGST @ 2.5", "Duties & Taxes"),
@@ -80,6 +96,10 @@ def create_gst_tally_accounts():
         ("Output Tax CGST @ 14.0", "Duties & Taxes"),
         ("Output Tax SGST @ 14.0", "Duties & Taxes"),
         ("Output Tax IGST @ 28.0", "Duties & Taxes"),
+
+        ("Output Tax CGST @ 20.0", "Duties & Taxes"),
+        ("Output Tax SGST @ 20.0", "Duties & Taxes"),
+        ("Output Tax IGST @ 40.0", "Duties & Taxes"),
     ]
 
     for ledger_name, parent in ledgers:

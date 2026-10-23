@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 from werkzeug.wrappers import Response
 from frappe.utils import getdate, today
-from ts_tally_integration.tally_integration.utils.api.ledger_items import items_without_own_ledger
+from ts_tally_integration.tally_integration.utils.api.ledger_items import items_without_own_ledger, fill_gst_rates, group_item_taxes, gst_ledger_suffix
 
 
 DEFAULT_COST_CATEGORY = "Primary Cost Category"
@@ -111,6 +111,8 @@ def get_debit_note(company_id=None):
                 ledger_suffix = None
 
                 purchase_item = frappe.get_all('Purchase Invoice Item', filters={'parent':doc.name}, fields=['*'])
+
+                fill_gst_rates(purchase_item, 'Purchase Taxes and Charges', doc.name)
                 # Items booked to an account sent as its own ledger line below
                 # would otherwise be counted twice, leaving Dr and Cr unequal.
                 purchase_item = items_without_own_ledger(purchase_item, 'expense_account', ('Bank', 'Expense Account', 'Chargeable'))
@@ -119,12 +121,7 @@ def get_debit_note(company_id=None):
                     hsn_desc = frappe.get_value('GST HSN Code', {'name': item.get('gst_hsn_code')}, 'description')
                     gst_hsn_description = hsn_desc.replace('\n', ' ') if hsn_desc else ""
 
-                    if item['sgst_rate']:
-                        ledger_suffix = item['sgst_rate'] + item['cgst_rate']
-                    elif item['gst_treatment'] == 'Exempted':
-                        ledger_suffix = 'Exempt'
-                    elif item['igst_rate']:
-                        ledger_suffix = item['igst_rate']
+                    ledger_suffix = gst_ledger_suffix(item, doc.name)
 
 
                     ledger_dict = {
@@ -157,9 +154,9 @@ def get_debit_note(company_id=None):
                         "Godown": "",
                         "BatchNo": "",
                         "Quantity": abs(item['qty']),
-                        "Rate": item['net_amount'],
+                        "Rate": abs(item['net_amount']),
                         "Discount": "",
-                        "Amount": round(item['net_amount'], 2),
+                        "Amount": abs(round(item['net_amount'], 2)),
                         "OrderNo": "",
                         "OrderDate": "",
                         "TrackingNo": "",
@@ -232,21 +229,9 @@ def get_debit_note(company_id=None):
                     parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
                     tax_processed = True
 
-                    items_tax = frappe.db.sql(f"""
-                                SELECT 
-                                    parent,
-                                    item_name,
-                                    cgst_rate, 
-                                    sgst_rate, 
-                                    igst_rate,
-                                    gst_treatment,
-                                    SUM(cgst_amount) AS cgst_amount, 
-                                    SUM(sgst_amount) AS sgst_amount, 
-                                    SUM(igst_amount) AS igst_amount 
-                                FROM `tabPurchase Invoice Item` 
-                                WHERE parent='{doc.name}'
-                                GROUP BY parent, cgst_rate, sgst_rate, igst_rate
-                            """, as_dict=True)
+                    items_tax = group_item_taxes(fill_gst_rates(
+                            frappe.get_all('Purchase Invoice Item', filters={'parent': doc.name}, fields=['*']),
+                            'Purchase Taxes and Charges', doc.name))
 
                     for item in items_tax:
                         if not item['gst_treatment'] == 'Exempted':
@@ -260,7 +245,7 @@ def get_debit_note(company_id=None):
                                     "VoucherDate": datetime.strptime(str(doc.posting_date),'%Y-%m-%d').strftime('%d-%m-%Y'),
                                     "VoucherType": 'ERP Debit Note',
                                     "VoucherTypeParent": "Debit Note",
-                                    "LedgerName": f"Output Tax CGST @ {item['cgst_rate']}",
+                                    "LedgerName": f"Input Tax CGST @ {item['cgst_rate']}",
                                     "LedgerParent": parent_account,
 
                                     "LedgerAddress": cus_address[0]['city'] if cus_address and parent_account== "Sundry Creditors" else "", 
@@ -283,7 +268,7 @@ def get_debit_note(company_id=None):
                                     "Quantity": "",
                                     "Rate": "",
                                     "Discount": "",
-                                    "Amount": round(item['cgst_amount'], 2),
+                                    "Amount": abs(round(item['cgst_amount'], 2)),
                                     "OrderNo": "",
                                     "OrderDate": "",
                                     "TrackingNo": "",
@@ -353,7 +338,7 @@ def get_debit_note(company_id=None):
                                     "VoucherDate": datetime.strptime(str(doc.posting_date),'%Y-%m-%d').strftime('%d-%m-%Y'),
                                     "VoucherType": 'ERP Debit Note',
                                     "VoucherTypeParent": "Debit Note",
-                                    "LedgerName": f"Output Tax SGST @ {item['cgst_rate']}",
+                                    "LedgerName": f"Input Tax SGST @ {item['cgst_rate']}",
                                     "LedgerParent": parent_account,
 
                                     "LedgerAddress": cus_address[0]['city'] if cus_address and parent_account== "Sundry Creditors" else "", 
@@ -376,7 +361,7 @@ def get_debit_note(company_id=None):
                                     "Quantity": "",
                                     "Rate": "",
                                     "Discount": "",
-                                    "Amount": round(item['cgst_amount'], 2),
+                                    "Amount": abs(round(item['cgst_amount'], 2)),
                                     "OrderNo": "",
                                     "OrderDate": "",
                                     "TrackingNo": "",
@@ -468,7 +453,7 @@ def get_debit_note(company_id=None):
                                     "Quantity": "",
                                     "Rate": "",
                                     "Discount": "",
-                                    "Amount": round(item['igst_amount'], 2),
+                                    "Amount": abs(round(item['igst_amount'], 2)),
                                     "OrderNo": "",
                                     "OrderDate": "",
                                     "TrackingNo": "",
@@ -565,7 +550,7 @@ def get_debit_note(company_id=None):
                     "Quantity": "",
                     "Rate": "",
                     "Discount": "",
-                    "Amount": round(amount, 2),
+                    "Amount": abs(round(amount, 2)),
                     "OrderNo": "",
                     "OrderDate": "",
                     "TrackingNo": "",
@@ -661,7 +646,7 @@ def get_debit_note(company_id=None):
                     "Quantity": "",
                     "Rate": "",
                     "Discount": "",
-                    "Amount": round(amount, 2),
+                    "Amount": abs(round(amount, 2)),
                     "OrderNo": "",
                     "OrderDate": "",
                     "TrackingNo": "",
@@ -756,7 +741,7 @@ def get_debit_note(company_id=None):
                     "Quantity": "",
                     "Rate": "",
                     "Discount": "",
-                    "Amount": round(amount, 2),
+                    "Amount": abs(round(amount, 2)),
                     "OrderNo": "",
                     "OrderDate": "",
                     "TrackingNo": "",
@@ -852,7 +837,7 @@ def get_debit_note(company_id=None):
                     "Quantity": "",
                     "Rate": "",
                     "Discount": "",
-                    "Amount": round(amount, 2),
+                    "Amount": abs(round(amount, 2)),
                     "OrderNo": "",
                     "OrderDate": "",
                     "TrackingNo": "",
@@ -948,7 +933,7 @@ def get_debit_note(company_id=None):
                     "Quantity": "",
                     "Rate": "",
                     "Discount": "",
-                    "Amount": round(amount, 2),
+                    "Amount": abs(round(amount, 2)),
                     "OrderNo": "",
                     "OrderDate": "",
                     "TrackingNo": "",
