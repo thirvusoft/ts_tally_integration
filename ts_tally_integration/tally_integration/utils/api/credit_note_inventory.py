@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 from werkzeug.wrappers import Response
 from frappe.utils import getdate, today
-from ts_tally_integration.tally_integration.utils.api.ledger_items import items_without_own_ledger
+from ts_tally_integration.tally_integration.utils.api.ledger_items import items_without_own_ledger, fill_gst_rates, group_item_taxes, gst_ledger_suffix
 
 
 DEFAULT_COST_CATEGORY = "Primary Cost Category"
@@ -129,6 +129,8 @@ def credit_note_inv(company_id = None):
                     tally_parent = frappe.get_value('Account', ledgername, 'custom_tally_parent_account')
 
                     sales_item = frappe.get_all('Sales Invoice Item', filters={'parent':doc.name}, fields=['*'])
+
+                    fill_gst_rates(sales_item, 'Sales Taxes and Charges', doc.name)
                     # Items booked to an account sent as its own ledger line below
                     # would otherwise be counted twice, leaving Dr and Cr unequal.
                     sales_item = items_without_own_ledger(sales_item, 'income_account', ('Bank', 'Expense Account', 'Direct Expense', 'Indirect Expense', 'Chargeable'))
@@ -137,12 +139,7 @@ def credit_note_inv(company_id = None):
                         hsn_desc = frappe.get_value('GST HSN Code', {'name': item.get('gst_hsn_code')}, 'description')
                         gst_hsn_description = hsn_desc.replace('\n', ' ') if hsn_desc else ""
 
-                        if item['sgst_rate']:
-                            ledger_suffix = item['sgst_rate'] + item['cgst_rate']
-                        elif item['gst_treatment'] == 'Exempted':
-                            ledger_suffix = 'Exempt'
-                        elif item['igst_rate']:
-                            ledger_suffix = item['igst_rate']
+                        ledger_suffix = gst_ledger_suffix(item, doc.name)
 
                         ledger_dict = {
                             "Autoid": doc.name,
@@ -174,9 +171,9 @@ def credit_note_inv(company_id = None):
                             "Godown": item['warehouse'].split('-')[0].strip(),
                             "BatchNo": "",
                             "Quantity": abs(item['qty']),
-                            "Rate": item['net_rate'],
+                            "Rate": abs(item['net_rate']),
                             "Discount": "",
-                            "Amount": item['taxable_value'],
+                            "Amount": abs(item['taxable_value']),
                             "OrderNo": "",
                             "OrderDate": "",
                             "TrackingNo": "",
@@ -248,20 +245,9 @@ def credit_note_inv(company_id = None):
                         tally_parent = frappe.get_value('Account', ledger['account'], 'custom_tally_parent_account')
                         tax_processed = True
 
-                        items_tax = frappe.db.sql(f"""
-                                    SELECT
-                                        parent,
-                                        cgst_rate, 
-                                        sgst_rate, 
-                                        igst_rate,
-                                        gst_treatment,
-                                        SUM(cgst_amount) AS cgst_amount, 
-                                        SUM(sgst_amount) AS sgst_amount, 
-                                        SUM(igst_amount) AS igst_amount 
-                                    FROM `tabSales Invoice Item` 
-                                    WHERE parent='{doc.name}' AND docstatus=1
-                                    GROUP BY parent, cgst_rate, sgst_rate, igst_rate
-                                """, as_dict=True)
+                        items_tax = group_item_taxes(fill_gst_rates(
+                            frappe.get_all('Sales Invoice Item', filters={'parent': doc.name}, fields=['*']),
+                            'Sales Taxes and Charges', doc.name))
 
                         for item in items_tax:
 
@@ -299,7 +285,7 @@ def credit_note_inv(company_id = None):
                                         "Quantity": "",
                                         "Rate": "",
                                         "Discount": "",
-                                        "Amount": abs(item['cgst_amount']),
+                                        "Amount": abs(round(item['cgst_amount'], 2)),
                                         "OrderNo": "",
                                         "OrderDate": "",
                                         "TrackingNo": "",
@@ -393,7 +379,7 @@ def credit_note_inv(company_id = None):
                                         "Quantity": "",
                                         "Rate": "",
                                         "Discount": "",
-                                        "Amount": abs(item['sgst_amount']),
+                                        "Amount": abs(round(item['sgst_amount'], 2)),
                                         "OrderNo": "",
                                         "OrderDate": "",
                                         "TrackingNo": "",
@@ -486,7 +472,7 @@ def credit_note_inv(company_id = None):
                                         "Quantity": "",
                                         "Rate": "",
                                         "Discount": "",
-                                        "Amount": abs(item['igst_amount']),
+                                        "Amount": abs(round(item['igst_amount'], 2)),
                                         "OrderNo": "",
                                         "OrderDate": "",
                                         "TrackingNo": "",

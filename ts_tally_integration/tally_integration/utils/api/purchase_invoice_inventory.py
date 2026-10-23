@@ -1,4 +1,5 @@
 import frappe, importlib
+from ts_tally_integration.tally_integration.utils.api.ledger_items import fill_gst_rates, group_item_taxes, gst_ledger_suffix
 from ts_tally_integration.tally_integration.utils.api.sync_settings import company_filters, company_sync_required
 from ts_tally_integration.tally_integration.utils.api.sync_settings import get_voucher_sync_limit
 from datetime import datetime
@@ -140,6 +141,8 @@ def get_purchase_invoice(company_id=None):
                 ledger_suffix = None
 
                 purchase_item = frappe.get_all('Purchase Invoice Item', filters={'parent':doc.name}, fields=['*'])
+
+                fill_gst_rates(purchase_item, 'Purchase Taxes and Charges', doc.name)
                 # Items booked to an expense or fixed asset account already go out
                 # as that account's own ledger line below; listing them here as
                 # well counted them twice and left Dr above Cr.
@@ -178,12 +181,7 @@ def get_purchase_invoice(company_id=None):
                     hsn_desc = frappe.get_value('GST HSN Code', {'name': item.get('gst_hsn_code')}, 'description')
                     gst_hsn_description = hsn_desc.replace('\n', ' ') if hsn_desc else ""
 
-                    if item['sgst_rate']:
-                        ledger_suffix = item['sgst_rate'] + item['cgst_rate']
-                    elif item['gst_treatment'] == 'Exempted':
-                        ledger_suffix = 'Exempt'
-                    elif item['igst_rate']:
-                        ledger_suffix = item['igst_rate']
+                    ledger_suffix = gst_ledger_suffix(item, doc.name)
 
 
                     ledger_dict = {
@@ -292,21 +290,9 @@ def get_purchase_invoice(company_id=None):
                     parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
                     tax_processed = True
 
-                    items_tax = frappe.db.sql(f"""
-                                SELECT 
-                                    parent,
-                                    item_name,
-                                    cgst_rate, 
-                                    sgst_rate, 
-                                    igst_rate,
-                                    gst_treatment,
-                                    SUM(cgst_amount) AS cgst_amount, 
-                                    SUM(sgst_amount) AS sgst_amount, 
-                                    SUM(igst_amount) AS igst_amount 
-                                FROM `tabPurchase Invoice Item` 
-                                WHERE parent='{doc.name}'
-                                GROUP BY parent, cgst_rate, sgst_rate, igst_rate
-                            """, as_dict=True)
+                    items_tax = group_item_taxes(fill_gst_rates(
+                            frappe.get_all('Purchase Invoice Item', filters={'parent': doc.name}, fields=['*']),
+                            'Purchase Taxes and Charges', doc.name))
 
                     for item in items_tax:
                         if not item['gst_treatment'] == 'Exempted':
