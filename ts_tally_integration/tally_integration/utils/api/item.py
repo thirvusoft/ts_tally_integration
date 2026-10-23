@@ -119,7 +119,7 @@ def fetch_response(response=None, company_id=None):
         if not item_name:
             continue
 
-        item_docname = frappe.db.get_value("Item", {"item_name": item_name}, "name")
+        item_docname = frappe.db.get_value("Item", {"item_code": item_name}, "name")
 
         if item_docname:
             sync_time = datetime.combine(

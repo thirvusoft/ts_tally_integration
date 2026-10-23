@@ -45,7 +45,7 @@ def get_delivery_note(company_id=None):
         # Customer address
         cus_address = frappe.get_all('Address', filters={'name': doc.customer_address}, fields=['*']) if doc.customer_address else []
         addr = _get_address_details(cus_address)
-        customer_pan = frappe.get_value('Customer', doc.customer_name, 'pan')
+        customer_pan = frappe.get_value('Customer', doc.customer, 'pan')
         # Shipping address
         cus_ship_link = frappe.get_all('Dynamic Link', filters={'link_doctype': 'Customer', 'link_name': doc['customer']}, fields=['parent'])
         cus_ship_address = frappe.get_all('Address', filters={'name': cus_ship_link[0]['parent']} if cus_ship_link else {}, fields=['*'])
@@ -69,7 +69,7 @@ def get_delivery_note(company_id=None):
             "VoucherDate": doc.posting_date.strftime('%d-%m-%Y') if isinstance(doc.posting_date, datetime) else datetime.strptime(str(doc.posting_date), '%Y-%m-%d').strftime('%d-%m-%Y'),
             "VoucherType": "ERP Delivery Note",
             "VoucherTypeParent": "Delivery Note",
-            "LedgerName": doc.customer_name,
+            "LedgerName": doc.customer,
             "LedgerParent": "Sundry Debtors",
             "LedgerAddress": addr['city'],
             "LedgerState": addr['state'],
@@ -182,7 +182,7 @@ def get_delivery_note(company_id=None):
                     "CrDr": "Cr" if item.get("cgst_amount") < 0 else "Dr",
                     "CostCategory": "",
                     "CostCentre": '',
-                    "Stockitem": item.get('item_name'),
+                    "Stockitem": item.get('item_code'),
                     "Godown": '',
                     "BatchNo": '',
                     "Quantity": item.get("qty"),
@@ -276,7 +276,7 @@ def get_delivery_note(company_id=None):
                     "CrDr": "Cr" if item.get("cgst_amount") < 0 else "Dr",
                     "CostCategory": "",
                     "CostCentre": '',
-                    "Stockitem": item.get('item_name'),
+                    "Stockitem": item.get('item_code'),
                     "Godown": '',
                     "BatchNo": '',
                     "Quantity": item.get("qty"),
@@ -468,7 +468,7 @@ def get_delivery_note(company_id=None):
                 "CrDr": "Cr" if item.get("cgst_amount") < 0 else "Dr",
                 "CostCategory": "",
                 "CostCentre": '',
-                "Stockitem": item.get('item_name'),
+                "Stockitem": item.get('item_code'),
                 "Godown": '',
                 "BatchNo": '',
                 "Quantity": item.get("qty"),

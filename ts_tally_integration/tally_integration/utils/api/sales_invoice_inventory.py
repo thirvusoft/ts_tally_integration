@@ -112,7 +112,7 @@ def get_sales_inv(company_id=None):
             else:
                 cus_address = []
             cus_address = cus_address or [EMPTY_ADDRESS.copy()]
-            customer_pan = frappe.get_value('Customer', {'name': doc.customer_name}, ['pan'])
+            customer_pan = frappe.get_value('Customer', {'name': doc.customer}, ['pan'])
 
             cus_ship_link = frappe.get_all('Dynamic Link', filters={'link_doctype': 'Customer', 'link_name': doc['customer']}, fields=['parent'])
             cus_ship_address = frappe.get_all(
@@ -668,7 +668,7 @@ def get_sales_inv(company_id=None):
 
 
                 elif account_type == 'Receivable':
-                    ledgername = doc.customer_name
+                    ledgername = doc.customer
                     parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
 
                     ledger_dict = {
