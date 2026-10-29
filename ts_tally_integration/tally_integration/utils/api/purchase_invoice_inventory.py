@@ -119,6 +119,15 @@ def get_purchase_invoice(company_id=None):
         gl_entry = frappe.get_all('GL Entry', filters = {'voucher_no':doc.name}, fields = ['*'])
         gl_entry = gl_entry[::-1]
 
+        # GST accounts are sent as "Input Tax ... @ rate" lines built from the
+        # items. Other tax accounts (TCS, TDS) are not, so they go out as their
+        # own ledger line; skipping them left Cr above Dr.
+        gst_accounts = set(frappe.get_all(
+            'Purchase Taxes and Charges',
+            filters={'parent': doc.name, 'gst_tax_type': ['is', 'set']},
+            pluck='account_head'
+        ))
+
 
         for invoice in gl_entry:
             amount = invoice['credit'] if 'credit' in invoice and invoice['credit'] else invoice['debit']
@@ -284,7 +293,7 @@ def get_purchase_invoice(company_id=None):
             # --------------------------------- The BELOW block of code is only for TAX ---------------------------------------------
 
 
-            elif account_type == 'Tax':
+            elif account_type == 'Tax' and invoice['account'] in gst_accounts:
                 if not tax_processed:
                     ledgername = invoice['account']
                     parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
@@ -581,7 +590,7 @@ def get_purchase_invoice(company_id=None):
                 # --------------------------------- The ABOVE block of code is only for TAX ---------------------------------------------
 
 
-            elif account_type in ('Bank', 'Fixed Asset'):
+            elif account_type in ('Bank', 'Fixed Asset', 'Tax'):
                 ledgername = invoice['account']
                 parent_account = frappe.get_value('Account', invoice['account'], 'custom_tally_parent_account')
 
